@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { storage } from '../../utils/storage';
+import { createAttempt as createAttemptApi } from '../../api/attempts';
 import { Exam, ExamAttempt } from '../../types';
 import { Clock, AlertCircle, ArrowLeft } from 'lucide-react';
 
@@ -65,7 +65,7 @@ export function ExamTaking({ exam, onComplete }: ExamTakingProps) {
     return (correct / exam.questions.length) * 100;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const finalScore = calculateScore();
 
     const attempt: ExamAttempt = {
@@ -77,11 +77,14 @@ export function ExamTaking({ exam, onComplete }: ExamTakingProps) {
       completedAt: new Date().toISOString()
     };
 
-    const attempts = storage.getAttempts();
-    storage.saveAttempts([...attempts, attempt]);
+    const result = await createAttemptApi(attempt);
+    if (!result.success) {
+      alert(result.error || 'Failed to save attempt');
+      return;
+    }
 
     if (finalScore >= 70) {
-      updateUserCourses(exam.courseKey);
+      await updateUserCourses(exam.courseKey);
     }
 
     onComplete();

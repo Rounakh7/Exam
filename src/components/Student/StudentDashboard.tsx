@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { storage } from '../../utils/storage';
+import { getExams } from '../../api/exams';
 import { Exam, ExamType } from '../../types';
 import { LogOut, BookOpen, Clock, Award, FileBarChart } from 'lucide-react';
 import { ExamTaking } from './ExamTaking';
@@ -16,8 +16,9 @@ export function StudentDashboard() {
     loadExams();
   }, []);
 
-  const loadExams = () => {
-    setExams(storage.getExams());
+  const loadExams = async () => {
+    const list = await getExams();
+    setExams(list);
   };
 
   const getExamsByType = (type: ExamType) => {

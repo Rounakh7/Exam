@@ -1,119 +1,69 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, UserRole } from '../types';
-import { storage } from '../utils/storage';
-
-/** Same username always gets the same id, so the same account works across devices. */
-function getUserIdForUsername(username: string): string {
-  let h = 0;
-  const s = username.trim().toLowerCase();
-  for (let i = 0; i < s.length; i++) {
-    h = (h << 5) - h + s.charCodeAt(i);
-    h |= 0;
-  }
-  return `user-${Math.abs(h).toString(36)}`;
-}
+import { getToken, setToken } from '../api/client';
+import * as authApi from '../api/auth';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => boolean;
-  register: (username: string, password: string, role: UserRole) => boolean;
+  loading: boolean;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (username: string, password: string, role: UserRole) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  updateUserCourses: (courseKey: string) => void;
+  updateUserCourses: (courseKey: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    storage.initializeDefaultAdmin();
-    const currentUser = storage.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
+    let cancelled = false;
+    const token = getToken();
+    if (!token) {
+      setLoading(false);
+      return;
     }
+    authApi.fetchMe().then((u) => {
+      if (!cancelled && u) setUser(u);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, []);
 
-  const login = (username: string, password: string): boolean => {
-    const users = storage.getUsers();
-    const foundUser = users.find(
-      u => u.username.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
-    );
-
-    if (foundUser) {
-      setUser(foundUser);
-      storage.setCurrentUser(foundUser);
-      return true;
+  const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await authApi.login(username, password);
+    if (result.success && result.user) {
+      setUser(result.user);
+      return { success: true };
     }
-
-    // Same account on another device: user not in this device's storage. Create them locally
-    // so the same username/password works everywhere (deterministic id for consistency).
-    const trimmedUsername = username.trim();
-    if (!trimmedUsername) return false;
-
-    const newUser: User = {
-      id: getUserIdForUsername(trimmedUsername),
-      username: trimmedUsername,
-      password,
-      role: 'student',
-      completedCourses: []
-    };
-    storage.saveUsers([...users, newUser]);
-    setUser(newUser);
-    storage.setCurrentUser(newUser);
-    return true;
+    return { success: false, error: result.error || 'Invalid username or password' };
   };
 
-  const register = (username: string, password: string, role: UserRole): boolean => {
-    const users = storage.getUsers();
-    const normalized = username.trim().toLowerCase();
-    if (users.some(u => u.username.toLowerCase().trim() === normalized)) {
-      return false;
+  const register = async (username: string, password: string, role: UserRole): Promise<{ success: boolean; error?: string }> => {
+    const result = await authApi.register(username, password, role);
+    if (result.success && result.user) {
+      setUser(result.user);
+      return { success: true };
     }
-
-    const newUser: User = {
-      id: getUserIdForUsername(username.trim()),
-      username: username.trim(),
-      password,
-      role,
-      completedCourses: []
-    };
-
-    storage.saveUsers([...users, newUser]);
-    setUser(newUser);
-    storage.setCurrentUser(newUser);
-    return true;
+    return { success: false, error: result.error || 'Registration failed' };
   };
 
   const logout = () => {
     setUser(null);
-    storage.setCurrentUser(null);
+    setToken(null);
   };
 
-  const updateUserCourses = (courseKey: string) => {
+  const updateUserCourses = async (courseKey: string) => {
     if (!user) return;
-
-    const users = storage.getUsers();
-    const updatedUsers = users.map(u => {
-      if (u.id === user.id) {
-        return {
-          ...u,
-          completedCourses: [...u.completedCourses, courseKey]
-        };
-      }
-      return u;
-    });
-
-    storage.saveUsers(updatedUsers);
-    const updatedUser = updatedUsers.find(u => u.id === user.id);
-    if (updatedUser) {
-      setUser(updatedUser);
-      storage.setCurrentUser(updatedUser);
-    }
+    const updated = await authApi.updateMyCourses(courseKey);
+    if (updated) setUser(updated);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, updateUserCourses }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUserCourses }}>
       {children}
     </AuthContext.Provider>
   );

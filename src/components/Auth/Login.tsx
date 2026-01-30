@@ -10,9 +10,10 @@ export function Login({ onSwitchToRegister }: LoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -21,9 +22,11 @@ export function Login({ onSwitchToRegister }: LoginProps) {
       return;
     }
 
-    const success = login(username, password);
-    if (!success) {
-      setError('Invalid username or password');
+    setLoading(true);
+    const result = await login(username, password);
+    setLoading(false);
+    if (!result.success) {
+      setError(result.error || 'Invalid username or password');
     }
   };
 
@@ -74,9 +77,10 @@ export function Login({ onSwitchToRegister }: LoginProps) {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition transform hover:scale-[1.02] active:scale-[0.98]"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Sign In
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 

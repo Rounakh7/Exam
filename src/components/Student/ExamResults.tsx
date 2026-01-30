@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { storage } from '../../utils/storage';
+import { getAttempts } from '../../api/attempts';
+import { getExams } from '../../api/exams';
 import { Exam, ExamAttempt, Question } from '../../types';
 import { ArrowLeft, CheckCircle2, XCircle, FileText, Calendar, Award } from 'lucide-react';
 
@@ -10,8 +11,22 @@ interface ExamResultsProps {
 
 export function ExamResults({ onBack }: ExamResultsProps) {
   const { user } = useAuth();
-  const attempts = storage.getAttempts().filter((a) => a.studentId === user?.id);
-  const exams = storage.getExams();
+  const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([getAttempts(), getExams()]).then(([a, e]) => {
+      if (!cancelled) {
+        setAttempts(a);
+        setExams(e);
+      }
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const getExam = (examId: string): Exam | undefined => exams.find((e) => e.id === examId);
 
@@ -19,6 +34,14 @@ export function ExamResults({ onBack }: ExamResultsProps) {
   const sortedAttempts = [...attempts].sort(
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Loading results...</p>
+      </div>
+    );
+  }
 
   if (sortedAttempts.length === 0) {
     return (

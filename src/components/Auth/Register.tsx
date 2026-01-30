@@ -15,7 +15,9 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
   const [error, setError] = useState('');
   const { register } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -34,9 +36,11 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
       return;
     }
 
-    const success = register(username, password, role);
-    if (!success) {
-      setError('Username already exists');
+    setLoading(true);
+    const result = await register(username, password, role);
+    setLoading(false);
+    if (!result.success) {
+      setError(result.error || 'Username already exists');
     }
   };
 
@@ -114,9 +118,10 @@ export function Register({ onSwitchToLogin }: RegisterProps) {
 
           <button
             type="submit"
-            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition transform hover:scale-[1.02] active:scale-[0.98]"
+            disabled={loading}
+            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Create Account
+            {loading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
 

@@ -6,8 +6,16 @@ import { AdminDashboard } from './components/Admin/AdminDashboard';
 import { StudentDashboard } from './components/Student/StudentDashboard';
 
 function AppContent() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [showRegister, setShowRegister] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    );
+  }
 
   if (!user) {
     return showRegister ? (

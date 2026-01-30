@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { storage } from '../../utils/storage';
+import { getExams, deleteExam as deleteExamApi } from '../../api/exams';
 import { Exam, ExamType } from '../../types';
 import { Plus, LogOut, Edit, Trash2, BookOpen } from 'lucide-react';
 import { ExamForm } from './ExamForm';
@@ -15,15 +15,18 @@ export function AdminDashboard() {
     loadExams();
   }, []);
 
-  const loadExams = () => {
-    setExams(storage.getExams());
+  const loadExams = async () => {
+    const list = await getExams();
+    setExams(list);
   };
 
-  const handleDeleteExam = (examId: string) => {
-    if (confirm('Are you sure you want to delete this exam?')) {
-      const updatedExams = exams.filter(e => e.id !== examId);
-      storage.saveExams(updatedExams);
-      setExams(updatedExams);
+  const handleDeleteExam = async (examId: string) => {
+    if (!confirm('Are you sure you want to delete this exam?')) return;
+    const result = await deleteExamApi(examId);
+    if (result.success) {
+      setExams((prev) => prev.filter((e) => e.id !== examId));
+    } else {
+      alert(result.error || 'Failed to delete exam');
     }
   };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { storage } from '../../utils/storage';
+import { createExam as createExamApi, updateExam as updateExamApi } from '../../api/exams';
 import { Exam, ExamType, Question } from '../../types';
 import { X, Plus, Trash2 } from 'lucide-react';
 
@@ -60,7 +60,9 @@ export function ExamForm({ exam, onClose }: ExamFormProps) {
     setQuestions(questions.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!title || !courseKey || questions.length === 0) {
@@ -77,30 +79,31 @@ export function ExamForm({ exam, onClose }: ExamFormProps) {
       return;
     }
 
-    const exams = storage.getExams();
     const duration = getDuration(type);
-
-    if (exam) {
-      const updatedExams = exams.map(e =>
-        e.id === exam.id
-          ? { ...exam, title, type, courseKey, questions, duration }
-          : e
-      );
-      storage.saveExams(updatedExams);
-    } else {
-      const newExam: Exam = {
-        id: `exam-${Date.now()}`,
-        title,
-        type,
-        courseKey,
-        questions,
-        duration,
-        createdAt: new Date().toISOString()
-      };
-      storage.saveExams([...exams, newExam]);
+    setSubmitting(true);
+    try {
+      if (exam) {
+        const updated: Exam = { ...exam, title, type, courseKey, questions, duration };
+        const result = await updateExamApi(updated);
+        if (result.success) onClose();
+        else alert(result.error || 'Failed to update exam');
+      } else {
+        const newExam: Exam = {
+          id: `exam-${Date.now()}`,
+          title,
+          type,
+          courseKey,
+          questions,
+          duration,
+          createdAt: new Date().toISOString()
+        };
+        const result = await createExamApi(newExam);
+        if (result.success) onClose();
+        else alert(result.error || 'Failed to create exam');
+      }
+    } finally {
+      setSubmitting(false);
     }
-
-    onClose();
   };
 
   return (
@@ -249,9 +252,10 @@ export function ExamForm({ exam, onClose }: ExamFormProps) {
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              disabled={submitting}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {exam ? 'Update Exam' : 'Create Exam'}
+              {submitting ? 'Saving...' : exam ? 'Update Exam' : 'Create Exam'}
             </button>
           </div>
         </form>
