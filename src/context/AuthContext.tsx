@@ -2,6 +2,17 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { User, UserRole } from '../types';
 import { storage } from '../utils/storage';
 
+/** Same username always gets the same id, so the same account works across devices. */
+function getUserIdForUsername(username: string): string {
+  let h = 0;
+  const s = username.trim().toLowerCase();
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
+  }
+  return `user-${Math.abs(h).toString(36)}`;
+}
+
 interface AuthContextType {
   user: User | null;
   login: (username: string, password: string) => boolean;
@@ -26,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (username: string, password: string): boolean => {
     const users = storage.getUsers();
     const foundUser = users.find(
-      u => u.username === username && u.password === password
+      u => u.username.toLowerCase().trim() === username.toLowerCase().trim() && u.password === password
     );
 
     if (foundUser) {
@@ -34,19 +45,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       storage.setCurrentUser(foundUser);
       return true;
     }
-    return false;
+
+    // Same account on another device: user not in this device's storage. Create them locally
+    // so the same username/password works everywhere (deterministic id for consistency).
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) return false;
+
+    const newUser: User = {
+      id: getUserIdForUsername(trimmedUsername),
+      username: trimmedUsername,
+      password,
+      role: 'student',
+      completedCourses: []
+    };
+    storage.saveUsers([...users, newUser]);
+    setUser(newUser);
+    storage.setCurrentUser(newUser);
+    return true;
   };
 
   const register = (username: string, password: string, role: UserRole): boolean => {
     const users = storage.getUsers();
-
-    if (users.some(u => u.username === username)) {
+    const normalized = username.trim().toLowerCase();
+    if (users.some(u => u.username.toLowerCase().trim() === normalized)) {
       return false;
     }
 
     const newUser: User = {
-      id: `user-${Date.now()}`,
-      username,
+      id: getUserIdForUsername(username.trim()),
+      username: username.trim(),
       password,
       role,
       completedCourses: []
